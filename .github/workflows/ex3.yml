@@ -1,0 +1,115 @@
+name: Exercice 3
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environnement"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v7
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.18.0
+
+      - name: Installer les dépendances
+        working-directory: exercice3
+        run: npm ci
+
+      - name: Lancer le build
+        working-directory: exercice3
+        run: npm run build
+
+      - name: Vérifier le build
+        run: |
+          if [ ! -d "exercice3/dist" ]; then
+            echo "::error::Le dossier dist n'existe pas"
+            exit 1
+          fi
+
+      - name: Sauvegarder l'artefact
+        uses: actions/upload-artifact@v7
+        with:
+          name: application
+          path: exercice3/dist/
+
+      - name: Résumé du build
+        if: always()
+        run: |
+          echo "## Résultat du build" >> $GITHUB_STEP_SUMMARY
+          echo "Statut : ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "Commit : ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "Branche : ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+
+
+  test:
+    needs: build
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        node: [20, 22]
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v7
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Installer les dépendances
+        working-directory: exercice3
+        run: npm ci
+
+      - name: Récupérer l'artefact
+        uses: actions/download-artifact@v7
+        with:
+          name: application
+          path: exercice3/dist/
+
+      - name: Lancer les tests
+        working-directory: exercice3
+        run: npm test
+
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Récupérer l'artefact
+        uses: actions/download-artifact@v7
+        with:
+          name: application
+          path: exercice3/dist/
+
+      - name: Afficher API_URL
+        run: echo "API_URL = ${{ vars.API_URL }}"
+
+      - name: Résumé du déploiement
+        run: |
+          echo "## Déploiement" >> $GITHUB_STEP_SUMMARY
+          echo "Cible : ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "URL : ${{ vars.API_URL }}" >> $GITHUB_STEP_SUMMARY
+          echo "Commit : ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY

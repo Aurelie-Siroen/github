@@ -1,0 +1,46 @@
+name: Exercice 2 - Produire un artefact
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v7
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.18.0
+
+      - name: Installer les dépendances
+        working-directory: exercice2
+        run: npm ci
+
+      - name: Lancer le build
+        working-directory: exercice2
+        run: npm run build
+
+      - name: Vérifier le build
+        run: |
+          if [ ! -d "exercice2/dist" ]; then
+            echo "::error::Le dossier dist n'existe pas"
+            exit 1
+          fi
+
+      - name: Sauvegarder l'artefact
+        uses: actions/upload-artifact@v7
+        with:
+          name: build
+          path: exercice2/dist/
+
+      - name: Résumé du build
+        if: always()
+        run: |
+          echo "## Résultat du build" >> $GITHUB_STEP_SUMMARY
+          echo "Statut : ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "Commit : ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "Branche : ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
